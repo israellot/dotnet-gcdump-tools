@@ -1,0 +1,63 @@
+diff --git a/src/Tools/dotnet-gcdump/DotNetHeapDump/DotNetHeapDumpGraphReader.cs b/src/Tools/dotnet-gcdump/DotNetHeapDump/DotNetHeapDumpGraphReader.cs
+index 7bdb258b..a9e01ab3 100644
+--- a/src/Tools/dotnet-gcdump/DotNetHeapDump/DotNetHeapDumpGraphReader.cs
++++ b/src/Tools/dotnet-gcdump/DotNetHeapDump/DotNetHeapDumpGraphReader.cs
+@@ -19,6 +19,9 @@
+ /// </summary>
+ public class DotNetHeapDumpGraphReader
+ {
++    private const int DefaultMaxNodeCount = 10_000_000;
++    private const string MaxNodeCountEnvironmentVariable = "DOTNET_GCDUMP_MAX_NODES";
++
+     /// <summary>
+     /// A class for reading ETW events from the .NET runtime and creating a MemoryGraph from it.   This only works on V4.5.1 of the runtime or later.
+     /// </summary>
+@@ -529,8 +532,9 @@ internal unsafe void ConvertHeapDataToGraph()
+             return;
+         }
+ 
++        int maxNodeCount = GetMaxNodeCount();
+         m_converted = true;
+-        const int MaxNodeCount = 10_000_000;
++        m_log.WriteLine("Maximum node count: {0:n0}", maxNodeCount);
+ 
+         if (!m_seenStart)
+         {
+@@ -730,11 +734,11 @@ internal unsafe void ConvertHeapDataToGraph()
+             Debug.Assert(!m_graph.IsDefined(nodeIdx));
+             m_graph.SetNode(nodeIdx, typeIdx, objSize, m_children);
+ 
+-            if (m_graph.NodeCount >= MaxNodeCount)
++            if (m_graph.NodeCount >= maxNodeCount)
+             {
+                 doCompletionCheck = false;
+                 m_log.WriteLine("[WARNING]: Exceeded max node count {0}. Processed {1}/{2} nodes with {3} node bulk events to go.",
+-                    MaxNodeCount, m_curNodeIdx, m_curNodeBlock.Count, m_nodeBlocks.Count);
++                    maxNodeCount, m_curNodeIdx, m_curNodeBlock.Count, m_nodeBlocks.Count);
+                 break;
+             }
+         }
+@@ -755,6 +759,23 @@ internal unsafe void ConvertHeapDataToGraph()
+         m_graph.RootIndex = m_root.Index;
+     }
+ 
++    private static int GetMaxNodeCount()
++    {
++        string configuredValue = Environment.GetEnvironmentVariable(MaxNodeCountEnvironmentVariable);
++        if (string.IsNullOrEmpty(configuredValue))
++        {
++            return DefaultMaxNodeCount;
++        }
++
++        if (!int.TryParse(configuredValue, out int maxNodeCount) || maxNodeCount <= 0)
++        {
++            throw new InvalidOperationException(
++                $"Environment variable {MaxNodeCountEnvironmentVariable} must be a positive 32-bit integer.");
++        }
++
++        return maxNodeCount;
++    }
++
+     /// <summary>
+     /// Given a module image base, return a Module instance that has all the information we have on it.
+     /// </summary>

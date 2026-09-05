@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.111
+
+      - name: Build and verify
+        run: ./build.sh linux-x64
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/dotnet-gcdump-linux-x64 \
+            dist/SHA256SUMS \
+            dist/DOTNET-DIAGNOSTICS-LICENSE.txt \
+            dist/UPSTREAM-COMMIT.txt \
+            patches/configurable-max-nodes.patch \
+            --verify-tag \
+            --title "dotnet-gcdump tools ${GITHUB_REF_NAME}" \
+            --notes "Self-contained Linux x64 build. The stock 10-million-node default remains unchanged. Set DOTNET_GCDUMP_MAX_NODES to a positive 32-bit integer for measured larger captures."
